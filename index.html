@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>文字冒险</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Microsoft YaHei',sans-serif;background:linear-gradient(135deg,#1a1a2e,#16213e,#0f3460);min-height:100vh;display:flex;justify-content:center;align-items:center;padding:20px}
+.game-container{background:white;border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,0.3);max-width:800px;width:100%;overflow:hidden}
+.header{background:linear-gradient(135deg,#667eea,#764ba2);color:white;padding:30px;text-align:center}
+.header h1{font-size:2em;margin-bottom:10px}
+.content{padding:30px}
+.theme-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:15px;margin-top:20px}
+.theme-card{background:linear-gradient(135deg,#f5f7fa,#c3cfe2);border-radius:15px;padding:25px 15px;cursor:pointer;border:3px solid transparent;text-align:center;transition:all 0.3s}
+.theme-card:hover{transform:translateY(-3px);box-shadow:0 8px 25px rgba(0,0,0,0.15)}
+.theme-card.selected{border-color:#667eea;background:linear-gradient(135deg,#667eea,#764ba2);color:white}
+.theme-icon{font-size:2.5em;margin-bottom:10px}
+.theme-name{font-size:1.2em;font-weight:bold;margin-bottom:8px}
+.theme-desc{font-size:0.85em;opacity:0.8}
+.story-section{display:none}
+.story-section.active{display:block}
+.story-text{background:#f8f9fa;border-left:4px solid #667eea;padding:20px;margin:20px 0;border-radius:0 10px 10px 0;line-height:1.8;font-size:1.05em}
+.choice-btn{background:linear-gradient(135deg,#667eea,#764ba2);color:white;border:none;padding:15px 20px;border-radius:10px;font-size:1em;cursor:pointer;width:100%;margin:8px 0;text-align:left}
+.choice-btn:hover{opacity:0.9;transform:translateX(5px)}
+.stats{display:flex;gap:10px;margin-bottom:15px;flex-wrap:wrap}
+.stat{background:#f0f0f0;padding:10px 15px;border-radius:8px;text-align:center;min-width:80px}
+.stat-label{font-size:0.8em;color:#666}
+.stat-value{font-size:1.2em;font-weight:bold;color:#667eea}
+.progress{background:#e0e0e0;border-radius:6px;height:10px;margin-bottom:15px}
+.progress-fill{background:linear-gradient(90deg,#667eea,#764ba2);height:100%;border-radius:6px;transition:width 0.3s}
+</style>
+</head>
+<body>
+<div class="game-container">
+<div class="header"><h1>📖 文字冒险</h1><p>选择你的故事</p></div>
+<div class="content">
+<div id="themeSelection">
+<h2 style="text-align:center;margin-bottom:15px;">✨ 选择主题</h2>
+<div class="theme-grid">
+<div class="theme-card" onclick="sel('fantasy')"><div class="theme-icon">🐉</div><div class="theme-name">奇幻冒险</div><div class="theme-desc">魔法、巨龙与预言</div></div>
+<div class="theme-card" onclick="sel('scifi')"><div class="theme-icon">🚀</div><div class="theme-name">科幻探索</div><div class="theme-desc">星际旅行与外星文明</div></div>
+<div class="theme-card" onclick="sel('mystery')"><div class="theme-icon">🔍</div><div class="theme-name">悬疑推理</div><div class="theme-desc">破解谜团寻找真相</div></div>
+<div class="theme-card" onclick="sel('survival')"><div class="theme-icon">🏝️</div><div class="theme-name">荒野求生</div><div class="theme-desc">孤身一人挣扎求存</div></div>
+</div>
+</div>
+<div id="storySection" class="story-section">
+<div class="progress"><div id="progressFill" class="progress-fill" style="width:0%"></div></div>
+<div class="stats">
+<div class="stat"><div class="stat-label">生命</div><div id="healthStat" class="stat-value">100</div></div>
+<div class="stat"><div class="stat-label">智慧</div><div id="wisdomStat" class="stat-value">10</div></div>
+<div class="stat"><div class="stat-label">物品</div><div id="itemsStat" class="stat-value">0</div></div>
+</div>
+<div id="storyText" class="story-text"></div>
+<div id="choicesContainer"></div>
+</div>
+</div>
+</div>
+<script>
+var S={theme:null,health:100,wisdom:10,items:[],chapter:1},C=null;
+
+// 奇幻冒险故事
+var F={
+start:{t:"你是一名年轻的冒险者，在古老图书馆发现了一本泛黄的羊皮卷，记载着龙之泪的传说——一颗能够实现任何愿望的神秘宝石。<br><br>此刻，羊皮卷在你手中微微发光，窗外夕阳的余晖洒在远山上，那里据说隐藏着通往龙巢的秘密路径。",c:[{t:"📜 仔细研究羊皮卷",n:"study",w:5},{t:"🎒 立即踏上旅程",n:"prepare",i:["地图"]},{t:"👥 前往酒馆找伙伴",n:"tavern",h:10}]},
+study:{t:"你点燃蜡烛研读羊皮卷，文字在空中形成立体地图：<br><br>1. 迷雾森林——通往龙巢<br>2. 智者之塔——老法师居住<br>3. 暗影峡谷——强盗出没<br><br>末尾写着：真正的力量不在于征服，而在于理解。",c:[{t:"🌲 前往迷雾森林",n:"forest"},{t:"🧙 拜访智者之塔",n:"tower",w:10},{t:"⚔️ 穿越暗影峡谷",n:"canyon",h:-20}]},
+prepare:{t:"你收拾行囊：绳索、火把、干粮、祖父的旧剑。在背包夹层发现一枚刻着龙图案的徽章。<br><br>老猎人拦住你：孩子，你祖父也去找过龙之泪，回来后变了个人。记住，最大的宝藏不是宝石，而是沿途的收获。",c:[{t:"🤔 询问祖父往事",n:"hunter",w:5},{t:"🙏 感谢前行",n:"forest"},{t:"💰 购买补给",n:"supplies",h:20,i:["药水"]}]},
+tavern:{t:"酒馆里你注意到三个人：<br><br>1. 沉默的女剑士在擦剑<br>2. 吟游诗人在讲屠龙故事<br>3. 神秘蒙面人戴着兜帽",c:[{t:"🗡️ 邀请女剑士",n:"join",h:20},{t:"🎵 听诗人讲故事",n:"bard",w:10},{t:"👤 接近蒙面人",n:"mystery",i:["信件"]}]},
+forest:{t:"迷雾森林浓雾弥漫。突然你听到呼救声，看到有人被困在捕兽夹中。",c:[{t:"❤️ 上前救助",n:"help",h:-10,i:["盟友"]},{t:"🤔 先观察",n:"observe",w:5},{t:"🏃 绕道而行",n:"avoid",h:-5}]},
+tower:{t:"智者之塔高耸入云。白发老法师出现，眼睛如星辰般深邃。<br><br>他问：你认为龙之泪是什么？",c:[{t:"💎 能实现愿望的宝石",n:"gem"},{t:"🐉 巨龙力量结晶",n:"crystal",w:5},{t:"💧 一种象征",n:"symbol",w:20}]},
+canyon:{t:"暗影峡谷阴森恐怖。你被蒙面强盗包围：<br><br>留下买路钱，或留下命！他们身后有个被囚禁的女孩。",c:[{t:"⚔️ 战斗",n:"fight",h:-30},{t:"💰 交财物",n:"pay"},{t:"🧠 智慧周旋",n:"smart",w:10}]},
+gem:{t:"老法师摇头：你还停留在表面。<br><br>他打开传送门：去吧，理解时自然明白。",c:[{t:"🚪 进入传送门",n:"dragon"}]},
+crystal:{t:"老法师赞许：接近了，但不够。<br><br>他给你水晶：见到巨龙时会帮助。",c:[{t:"🙏 接过水晶",n:"dragon",i:["水晶"],w:5}]},
+symbol:{t:"老法师大笑：你是百年来第一个看破的！<br><br>龙之泪是象征——理解、牺牲与智慧。<br><br>他消散了：最后的考验在龙巢！",c:[{t:"✨ 前往龙巢",n:"dragon",w:10}]},
+help:{t:"你救出老妇人——森林守护者。<br><br>她念咒愈合你的伤口，给你发光的印记：这会保护你。",c:[{t:"🙏 感谢前行",n:"dragon",h:20,i:["守护印记"]}]},
+observe:{t:"你发现并避开陷阱，救出年轻魔法师。<br><br>他教你防护魔法作为感谢。",c:[{t:"📚 学习魔法",n:"dragon",w:15,h:10}]},
+avoid:{t:"你绕道但迷路了，走了很久回到原点。<br><br>呼救声消失，你继续旅程。",c:[{t:"😔 继续前进",n:"dragon",h:-10}]},
+hunter:{t:"老猎人叹气：你祖父找到龙之泪，许愿让你父亲成为最伟大战士。<br><br>愿望实现，但你父亲失去情感。你祖父后悔莫及。<br><br>孩子，慎重考虑愿望。",c:[{t:"😯 震惊仍前行",n:"forest",w:10}]},
+supplies:{t:"老猎人给你药水和食物：活着回来最重要。<br><br>你体力充沛踏上旅程。",c:[{t:"💪 前往迷雾森林",n:"forest",h:20,i:["药水"]}]},
+join:{t:"女剑士抬头：龙之泪？我去过，差点死了。<br><br>她起身：我欠你人情，带路吧。",c:[{t:"🌲 前往迷雾森林",n:"forest",h:20}]},
+bard:{t:"吟游诗人讲述：那巨龙比酒馆还大！但我用谜语难住了它...<br><br>你听出巨龙喜欢谜题。",c:[{t:"🧠 前往智者之塔",n:"tower",w:10}]},
+mystery:{t:"蒙面人靠近：我知道你在找什么。<br><br>他给你信：我祖父说真正的考验在内心。<br><br>说完消失了。",c:[{t:"📜 阅读信件",n:"tower",i:["信件"],w:5}]},
+fight:{t:"你激战强盗，受伤但获胜。<br><br>被救女孩说：我是公主。给你戒指：王室会报答你。",c:[{t:"💍 收下戒指",n:"dragon",h:-20,i:["王室戒指"]}]},
+pay:{t:"你交出财物。强盗放你走。<br><br>女孩冷冷说：懦夫，但我记住你了。<br><br>你愧疚前行。",c:[{t:"😞 继续前往龙巢",n:"dragon",h:-10}]},
+smart:{t:"你大喊：看巨龙！<br><br>强盗抬头，你点燃草堆。他们逃跑了。<br><br>女孩说：龙巢咒语是——月光指引勇者之路。",c:[{t:"📝 记住咒语",n:"dragon",w:15}]},
+dragon:{t:"你来到龙巢。古老金龙盘踞宝藏上，鳞片闪烁，眼睛如明月。<br><br>巨龙说：你和别人不同。为何而来？",c:[{t:"💫 诚实说愿望",n:"honest"},{t:"🎯 要求龙之泪",n:"demand",h:-50},{t:"🤝 做朋友",n:"end_friend"}]},
+honest:{t:"你讲述旅程：遇到的智者、救助的人、考验。<br><br>巨龙点头：你不是为私欲，有资格做最终选择。",c:[{t:"✨ 最终选择",n:"final"}]},
+demand:{t:"你强硬要求。巨龙眼睛闪寒光：<br><br>贪婪的人啊...<br><br>它喷火，你躲过但重伤。",c:[{t:"🏃 逃跑",n:"end_power",h:-50},{t:"🙏 道歉",n:"honest",h:-30}]},
+final:{t:"巨龙张嘴，晶莹宝石悬浮空中。这就是龙之泪！<br><br>它能实现愿望，但有代价。选择吧。",c:[{t:"🌟 为自己许愿",n:"end_power"},{t:"🌍 为世界许愿",n:"end_peace"},{t:"❌ 拒绝使用",n:"end_wisdom"}]},
+end_power:{t:"✨ 结局：力量的代价<br><br>你获得财富力量，成为英雄。但渐渐孤独——朋友敬畏，敌人恐惧。<br><br>深夜你想起旅途欢笑。得到一切，失去最珍贵的。<br><br>🏆 游戏结束！",c:[{t:"🔄 重新开始",n:"restart"}]},
+end_peace:{t:"🕊️ 结局：和平守护者<br><br>战火平息，世界和平。你成救世主，但继续做冒险者守护和平。<br><br>人们问起，你微笑：真正力量是让更多人幸福。<br><br>🏆 最佳结局！",c:[{t:"🔄 重新开始",n:"restart"}]},
+end_wisdom:{t:"🎓 结局：智慧启示<br><br>你明白老法师的话，将宝石还给巨龙。<br><br>巨龙欣慰：你是百年来第一个拒绝的，这份智慧比宝石珍贵。<br><br>你成传奇智者。<br><br>🏆 隐藏结局！",c:[{t:"🔄 重新开始",n:"restart"}]},
+end_friend:{t:"🐉 结局：跨越种族友谊<br><br>巨龙被真诚打动，你们成朋友。它载你翱翔，看凡人未见景色。<br><br>虽未得龙之泪，但收获珍贵友谊。<br><br>🏆 特殊结局！",c:[{t:"🔄 重新开始",n:"restart"}]}
+};
+
+// 科幻探索故事
+var SC={
+start:{t:"公元 2347 年，你驾驶开拓者号在银河系边缘巡逻。突然，量子雷达检测到异常信号——来自一个本应空无一人的星系。<br><br>信号中包含重复的数学序列，这绝不可能是自然形成的。AI 助手艾娃说：长官，这可能是外星文明，也可能是陷阱。",c:[{t:"📡 追踪信号来源",n:"trace",w:5},{t:"🛡️ 启动防御系统",n:"defend",h:10},{t:"📞 向星际联盟报告",n:"report",i:["支援"]}]},
+trace:{t:"你设定航线朝信号源前进。艾娃声音紧张：长官，前方发现巨大的人造结构！大小相当于卫星，能量读数超出量程！<br><br>透过舷窗，你看到一个完美的黑色球体，表面流动着紫色光芒。",c:[{t:"🔬 发射探测无人机",n:"probe",i:["数据"]},{t:"📻 用数学序列回应",n:"contact",w:10},{t:"🚀 直接靠近",n:"close",h:-10}]},
+defend:{t:"你启动所有防御系统，护盾闪烁蓝光。飞船缓缓靠近信号源。<br><br>艾娃报告：检测到未知能量波动，但似乎没有敌意。<br><br>黑色球体突然打开，一道柔和光束笼罩了飞船。",c:[{t:"🤔 保持警惕",n:"contact"},{t:"📡 尝试沟通",n:"contact",w:5}]},
+report:{t:"你向星际联盟发送详细报告。指挥中心回复：已收到，请谨慎接触，不要轻举妄动。<br><br>但信号越来越强，似乎在等待你的回应。",c:[{t:"📻 主动联系",n:"contact"},{t:"🔬 先收集数据",n:"trace",w:5}]},
+probe:{t:"无人机靠近球体，传回惊人数据：<br><br>结构内部有生命迹象...等等，数量巨大！这不是飞船，这是一个移动的文明！<br><br>突然，球体表面打开，露出内部璀璨的城市。",c:[{t:"📻 发送友好信号",n:"contact"},{t:"🚀 撤退观察",n:"final",w:5}]},
+close:{t:"你冒险靠近球体。突然，一股强大吸力捕获了飞船！<br><br>艾娃警报：护盾正在下降！你受了些伤，但飞船被平稳地带入球体内部。",c:[{t:"😵 准备应对",n:"contact",h:-10}]},
+contact:{t:"一道光束笼罩飞船，一个声音直接在你脑海响起：<br><br>我们是编织者，银河系的守护者。我们观察你的文明已经很久了。现在，是时候做出选择了。",c:[{t:"🤔 询问选择的含义",n:"ask",w:5},{t:"🌟 表示愿意帮助",n:"offer"},{t:"⚠️ 要求解释",n:"final"}]},
+ask:{t:"银河系面临一个抉择，编织者说，一个新兴文明掌握了危险技术，可能毁灭整个星系。你有三个选择。<br><br>你的选择，将决定银河系的命运。",c:[{t:"👂 聆听选项",n:"final"}]},
+offer:{t:"你的善意值得赞赏，编织者说，但帮助需要代价。你愿意为了陌生文明的存续，牺牲自己的一切吗？",c:[{t:"💫 我愿意",n:"end_guardian"},{t:"🤔 让我考虑",n:"final"}]},
+final:{t:"三个选择摆在你面前：<br><br>1. 摧毁这个文明，消除威胁<br>2. 引导他们走向正确道路<br>3. 让他们自由选择，承担后果",c:[{t:"💥 摧毁，保护大多数",n:"end_destroy"},{t:"🌱 引导，给予机会",n:"end_guide"},{t:"🕊️ 自由，尊重选择",n:"end_free"}]},
+end_destroy:{t:"💥 结局：毁灭者<br><br>你按下了毁灭按钮。那个文明在瞬间化为灰烬，威胁消除了。<br><br>但你每晚都梦到那些逝去的生命。你保护了银河系，却永远失去了内心的平静。<br><br>🏆 游戏结束",c:[{t:"🔄 重新开始",n:"restart"}]},
+end_guide:{t:"🌱 结局：引路人<br><br>你选择引导那个文明。编织者帮助你与他们建立联系，分享智慧。<br><br>数百年后，这个文明成为银河系最爱好和平的种族之一。你的选择改变了历史。<br><br>🏆 最佳结局！",c:[{t:"🔄 重新开始",n:"restart"}]},
+end_free:{t:"🕊️ 结局：自由意志<br><br>让他们自己选择，你说，即使会犯错。<br><br>编织者沉默良久：这是最危险的选择，也是最尊重生命的。<br><br>历史会证明你对了吗？<br><br>🏆 哲学结局",c:[{t:"🔄 重新开始",n:"restart"}]},
+end_guardian:{t:"🛡️ 结局：守护者<br><br>你牺牲了自己，成为编织者的一员。你的意识融入银河系，守护着无数文明。<br><br>你不再是人类，但获得了永恒。<br><br>🏆 升华结局！",c:[{t:"🔄 重新开始",n:"restart"}]}
+};
+
+// 悬疑推理故事
+var MY={
+start:{t:"深夜，你接到一通神秘电话：我知道十年前那起案件的真相...明早来废弃医院，一个人。<br><br>电话挂断了。十年前，你的妹妹离奇失踪，警方始终没有找到线索。",c:[{t:"🏥 独自前往医院",n:"hospital"},{t:"👮 通知警方",n:"police",w:5},{t:"🔍 先调查医院背景",n:"research",w:10}]},
+hospital:{t:"废弃医院阴森恐怖，月光透过破碎的窗户洒在地上。一个黑影在走廊尽头闪动。<br><br>你追上去，发现一间病房门半掩着，里面透出微弱的手电筒光。",c:[{t:"🔦 直接进入",n:"confront",h:-10},{t:"👀 先观察",n:"observe",w:5}]},
+police:{t:"警方表示会派人保护你。两名便衣警察跟着你来到医院。<br><br>但进入医院后，警察突然消失了！你发现自己被耍了。",c:[{t:"😠 继续深入",n:"hospital"},{t:"🏃 撤退",n:"research",h:-5}]},
+research:{t:"你调查发现，这家医院十年前因一系列意外死亡被关闭。院长在关闭前一天离奇自杀。<br><br>更诡异的是，所有死者都接受过同一位医生的治疗。",c:[{t:"🏥 寻找医生档案",n:"records"},{t:"👨 调查医生",n:"doctor",w:5}]},
+confront:{t:"你冲进病房，一个黑衣人站在那里。<br><br>你终于来了，他说，我是当年的实习医生。你妹妹...她还活着。",c:[{t:"😱 她在哪",n:"truth"},{t:"🤨 我凭什么相信你",n:"prove",w:5}]},
+observe:{t:"你躲在暗处观察。病房里有两个人在低声交谈：<br><br>他来了吗？<br>放心，鱼儿会上钩的。<br><br>这是个陷阱！",c:[{t:"👮 悄悄离开报警",n:"catch",w:10},{t:"⚔️ 冲进去对峙",n:"confront",h:-20}]},
+records:{t:"你在档案室找到了惊人记录：那位医生在进行非法人体实验，你妹妹是实验对象之一。<br><br>实验代号：永生计划。",c:[{t:"😨 继续调查",n:"truth"},{t:"📞 联系媒体",n:"media"}]},
+doctor:{t:"那位医生叫张明远，在医院关闭后失踪了。但有传言说他改头换面，现在是个成功的药企老板。<br><br>而你的妹妹，可能是唯一幸存的实验对象。",c:[{t:"🏢 调查药企",n:"pharma"},{t:"🏥 返回医院",n:"hospital"}]},
+truth:{t:"你妹妹被选中参与实验，但她逃走了。黑衣人递给你一个地址：<br><br>这是她最后出现的地方。去找她吧，但要小心——有人不想真相曝光。",c:[{t:"📍 前往地址",n:"final"},{t:"❓ 你是谁",n:"helper"}]},
+prove:{t:"证据？黑衣人拿出一张照片——是你和妹妹的合影，背面写着日期，正是她失踪前一天。<br><br>这是她给我的，让我有机会交给你。",c:[{t:"😢 接过照片",n:"truth"},{t:"🤨 这可能是伪造的",n:"helper",w:5}]},
+catch:{t:"警方及时赶到，抓获了两个骗子。但他们只是小角色，幕后黑手还在逃。<br><br>不过，从他们口中得知：你妹妹确实还活着。",c:[{t:"🔍 继续寻找妹妹",n:"final"}]},
+media:{t:"媒体曝光了医院的黑幕，引发轩然大波。政府介入调查，但关键人物都已消失。<br><br>你收到一条匿名短信：想知道真相，今晚来码头。",c:[{t:"🌊 前往码头",n:"final"},{t:"👮 通知警方",n:"catch"}]},
+pharma:{t:"你潜入药企，发现他们在继续当年的实验！在一间密室里，你找到了妹妹的日记。<br><br>最后一页写着：哥哥，如果你看到这个，来找我。我在我们小时候的秘密基地。",c:[{t:"🏠 前往秘密基地",n:"end_reunion"}]},
+helper:{t:"黑衣人摘下帽子——竟然是当年的主治医生！<br><br>我欠你妹妹一条命，他说，是我帮她逃出来的。现在，让我帮你找到她。",c:[{t:"🤝 相信他",n:"end_reunion"},{t:"😠 质问他",n:"truth"}]},
+final:{t:"你来到了指定地址——一家孤儿院。院长递给你一个信封：<br><br>一个女孩十年前托付给我的，说如果她家人来找，就交给他们。",c:[{t:"📬 打开信封",n:"end_truth"},{t:"❓ 她在哪",n:"end_search"}]},
+end_truth:{t:"📄 结局：真相<br><br>信里是妹妹的留言：哥哥，我选择了新的生活。不要找我，让我重新开始。我爱你。<br><br>你泪流满面，但为她高兴。至少，她还活着。<br><br>🏆 真实结局",c:[{t:"🔄 重新开始",n:"restart"}]},
+end_search:{t:"🔍 结局：漫长的寻找<br><br>院长摇头：她早就离开了。你继续寻找妹妹，十年，二十年...<br><br>某天，你在街上看到一个熟悉的身影，但她身边有个幸福的家庭。你选择默默离开。<br><br>🏆 守护结局",c:[{t:"🔄 重新开始",n:"restart"}]},
+end_reunion:{t:"👨 结局：重逢<br><br>在秘密基地，你终于见到了妹妹。她长大了，但笑容依旧。<br><br>我就知道你会来找我，她哭着说。<br><br>你们紧紧相拥，十年的分离在这一刻结束。<br><br>🏆 团圆结局！",c:[{t:"🔄 重新开始",n:"restart"}]}
+};
+
+// 荒野求生故事
+var SU={
+start:{t:"飞机坠毁在荒岛上，你是唯一幸存者。四周是茫茫大海，岛上丛林密布。<br><br>你检查了随身物品：一个打火机、半瓶水、一把小刀。",c:[{t:"🔥 先生火求救",n:"fire",w:5},{t:"💧 寻找水源",n:"water"},{t:"🏠 搭建庇护所",n:"shelter",h:10}]},
+fire:{t:"你用打火机和干草生起了火。浓烟升上天空，但没有任何船只回应。<br><br>夜幕降临，你感到寒冷和饥饿。",c:[{t:"🍖 寻找食物",n:"food"},{t:"😴 休息保存体力",n:"rest",h:10}]},
+water:{t:"你在岛上探索，发现了一条小溪。水质清澈，你痛饮一番，还装满了一个椰子壳。<br><br>但天色渐暗，你需要找个地方过夜。",c:[{t:"🏠 搭建简易庇护所",n:"shelter"},{t:"🔥 生火取暖",n:"fire",w:5}]},
+shelter:{t:"你用树枝和树叶搭建了一个简易庇护所。虽然简陋，但至少能遮风挡雨。<br><br>肚子开始咕咕叫，你需要食物。",c:[{t:"🐟 去海边捕鱼",n:"fish",i:["鱼"]},{t:"🥥 采集野果",n:"fruits",h:5}]},
+food:{t:"你在丛林里发现了一些野果，但不确定是否有毒。远处传来海浪声，也许海边有更容易获取的食物。",c:[{t:"🥥 冒险尝试野果",n:"risk",h:-20},{t:"🐟 去海边",n:"fish"}]},
+rest:{t:"你蜷缩在火堆旁，勉强过了一夜。清晨醒来，浑身酸痛，但精神好了些。<br><br>新的一天开始了，你需要为生存做准备。",c:[{t:"💧 寻找水源",n:"water"},{t:"🐟 去海边捕鱼",n:"fish"}]},
+fish:{t:"你在海边用尖锐的木棍成功叉到几条鱼！生火烤熟后，你饱餐一顿。<br><br>突然，你看到海平面上有个小黑点——是船吗？",c:[{t:"🔥 点燃信号火",n:"signal",i:["信号"]},{t:"👀 继续观察",n:"watch",w:5}]},
+fruits:{t:"你小心地采集了一些认识的野果。虽然不够美味，但至少安全。<br><br>吃饱后，你开始考虑长期生存计划。",c:[{t:"🏠 改善庇护所",n:"improve",h:10},{t:"🗺️ 探索全岛",n:"explore",w:10}]},
+risk:{t:"你冒险吃了一些野果。几个小时后，肚子剧痛！你上吐下泻，差点虚脱。<br><br>幸好挺过来了，但身体虚弱了很多。",c:[{t:"😷 休息恢复",n:"rest",h:-10},{t:"💧 多喝水",n:"water",h:5}]},
+signal:{t:"你点燃事先准备好的湿树叶，浓烟滚滚升起！船似乎注意到了，正在改变航向...<br><br>但就在这时，一场暴雨突然降临，浇灭了信号火！",c:[{t:"😱 尝试重新点火",n:"retry",h:-10},{t:"🏃 跑向海滩挥手",n:"wave"}]},
+watch:{t:"你仔细观察，确认那是一艘渔船。但它没有靠近的迹象，可能会错过这个岛。<br><br>你需要做点什么引起注意。",c:[{t:"🔥 点燃信号火",n:"signal"},{t:"🏃 在海滩摆出 SOS",n:"sos",w:10}]},
+improve:{t:"你用更好的材料加固了庇护所，还做了一个简易床铺。现在的住所舒适多了。<br><br>你已经在这个岛上生活了一周。",c:[{t:"🗺️ 探索岛屿深处",n:"explore"},{t:"🐟 储备食物",n:"fish",i:["干鱼"]}]},
+explore:{t:"你深入岛屿腹地，发现了一个山洞！洞里有淡水汇聚的水潭，还有...一架坠毁的旧飞机残骸。<br><br>飞机里有无线电设备！",c:[{t:"📻 尝试修理无线电",n:"radio",w:10},{t:"🔍 搜索其他物品",n:"search",i:["工具"]}]},
+retry:{t:"暴雨中你拼命保护火种，但一切都湿透了。你精疲力竭地倒在沙滩上，看着船远去。<br><br>机会失去了，但你还活着。",c:[{t:"😔 返回庇护所",n:"shelter",h:-10}]},
+wave:{t:"你疯狂挥手呼喊，但距离太远，船上的人看不到你。船缓缓驶过，消失在视野中。<br><br>你瘫坐在沙滩上，但很快振作起来。",c:[{t:"💪 继续生存",n:"water"},{t:"📻 修理无线电",n:"radio",w:5}]},
+sos:{t:"你用石头和贝壳在沙滩上摆出巨大的 SOS。第二天，一架直升机发现了信号！<br><br>救援来了！",c:[{t:"🎉 等待救援",n:"end_rescue"}]},
+radio:{t:"你凭借记忆中的知识，奇迹般地修好了无线电！<br><br>SOS！SOS！这里是荒岛求生者，坐标...<br><br>三天后，救援队抵达。",c:[{t:"🎉 得救了",n:"end_rescue"}]},
+search:{t:"你在飞机里找到了工具箱、电池和一些罐头食品。这些物资能让你坚持更久。<br><br>但无线电还是坏的，需要专业知识才能修理。",c:[{t:"🔧 尝试修理",n:"radio",w:10},{t:"📦 用物资吸引注意",n:"signal",i:["信号弹"]}]},
+end_rescue:{t:"🚁 结局：获救<br><br>救援队把你带上直升机。你回头看着这个生活了数周的荒岛，心中五味杂陈。<br><br>你活下来了，而且变得更强大。<br><br>🏆 生存胜利！",c:[{t:"🔄 重新开始",n:"restart"}]}
+};
+
+function sel(t){
+S.theme=t;
+var cs=document.querySelectorAll('.theme-card');
+for(var i=0;i<cs.length;i++)cs[i].classList.remove('selected');
+event.currentTarget.classList.add('selected');
+setTimeout(st,300);
+}
+
+function st(){
+document.getElementById('themeSelection').style.display='none';
+document.getElementById('storySection').classList.add('active');
+S.health=100;S.wisdom=10;S.items=[];S.chapter=1;
+if(S.theme==='fantasy')C=F;
+else if(S.theme==='scifi')C=SC;
+else if(S.theme==='mystery')C=MY;
+else if(S.theme==='survival')C=SU;
+ld('start');
+}
+
+function ld(n){
+if(n==='restart'){
+document.getElementById('themeSelection').style.display='block';
+document.getElementById('storySection').classList.remove('active');
+return;
+}
+var d=C[n];
+if(!d)d={t:'开发中...',c:[{t:'🔄 返回',n:'restart'}]};
+var p=(S.chapter/10)*100;
+document.getElementById('progressFill').style.width=p+'%';
+document.getElementById('storyText').innerHTML=d.t;
+var con=document.getElementById('choicesContainer');
+con.innerHTML='';
+for(var i=0;i<d.c.length;i++){
+(function(x){
+var b=document.createElement('button');
+b.className='choice-btn';
+b.textContent=x.t;
+b.onclick=function(){ef(x);ld(x.n);};
+con.appendChild(b);
+})(d.c[i]);
+}
+ef(d);
+S.chapter++;
+}
+
+function ef(c){
+if(c.h!==undefined)S.health=Math.max(0,Math.min(100,S.health+c.h));
+if(c.w!==undefined)S.wisdom+=c.w;
+if(c.i){for(var i=0;i<c.i.length;i++){var it=c.i[i];if(S.items.indexOf(it)===-1)S.items.push(it);}}
+us();
+}
+
+function us(){
+document.getElementById('healthStat').textContent=S.health;
+document.getElementById('wisdomStat').textContent=S.wisdom;
+document.getElementById('itemsStat').textContent=S.items.length;
+}
+</script>
+</body>
+</html>
